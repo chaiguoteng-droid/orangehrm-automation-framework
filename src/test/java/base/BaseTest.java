@@ -1,7 +1,11 @@
 package base;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Properties;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 
@@ -15,19 +19,36 @@ public class BaseTest {
     protected ConfigReader configReader;
 
     @BeforeMethod
-    public void setup() {
+    public void setup() throws MalformedURLException {
         LogUtils.info("========= 正在初始化测试环境 =========");
         
         // 1. 初始化配置读取器
         configReader = new ConfigReader();
         prop = configReader.init_prop();
         
-        // 2. 从配置文件读取浏览器类型
+        // 2. 获取配置
         String browserName = prop.getProperty("browser");
-        LogUtils.info("正在启动浏览器: " + browserName);
+        // 建议在 config.properties 里加一个参数 remote=true/false
+        String remoteMode = prop.getProperty("remote", "false"); 
         
-        // 3. 使用 DriverFactory 初始化 ThreadLocal 驱动
-        driver = DriverFactory.initDriver(browserName);
+        // 3. 核心修改：判断是跑本地还是 Docker
+        if (remoteMode.equalsIgnoreCase("true")) {
+            LogUtils.info("检测到开启远程模式，正在连接 Docker Selenium Grid...");
+            
+            ChromeOptions options = new ChromeOptions();
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
+            
+            // 这里连接你刚才在浏览器看到的那个地址
+            String hubUrl = "http://localhost:4444/wd/hub";
+            driver = new RemoteWebDriver(new URL(hubUrl), options);
+            
+            // 为了保持你的 ThreadLocal 逻辑，把驱动塞回去
+            DriverFactory.tlDriver.set(driver);
+        } else {
+            LogUtils.info("正在本地启动浏览器: " + browserName);
+            driver = DriverFactory.initDriver(browserName);
+        }
         
         // 4. 访问测试 URL
         String url = prop.getProperty("url");
@@ -40,10 +61,6 @@ public class BaseTest {
         if (driver != null) {
             LogUtils.info("正在关闭浏览器并清理会话...");
             driver.quit(); 
-            
-            /* * 关键更新：在 ThreadLocal 架构中，quit() 只是关闭浏览器，
-             * 必须手动移除线程中的副本，防止内存泄漏。
-             */
             DriverFactory.tlDriver.remove(); 
         }
         LogUtils.info("========= 测试环境清理完毕 =========");
