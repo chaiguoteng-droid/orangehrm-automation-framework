@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Selenium Hub：负责接收测试请求并分配任务
+  selenium-hub:
+    image: selenium/hub:4.16.1
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+
+  # Chrome 节点：实际执行测试的浏览器环境
+  chrome:
+    image: selenium/node-chrome:4.16.1
+    container_name: selenium-chrome
+    shm_size: '2gb' # 增加共享内存，防止大型网页崩溃
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=2 # 允许同时跑 2 个测试

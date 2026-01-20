@@ -7,8 +7,16 @@ import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.firefox.FirefoxDriver;
 
 public class DriverFactory {
+    
     // 关键：ThreadLocal 确保每个线程拥有独立的 WebDriver，支持并行测试
     public static ThreadLocal<WebDriver> tlDriver = new ThreadLocal<>();
+
+    /**
+     * 新增方法：用于手动设置驱动 (例如从 BaseTest 传入 RemoteWebDriver)
+     */
+    public static void setDriver(WebDriver driver) {
+        tlDriver.set(driver);
+    }
 
     public static WebDriver initDriver(String browser) {
         System.out.println("Browser value is: " + browser);
@@ -26,6 +34,7 @@ public class DriverFactory {
             System.out.println("Please pass the correct browser value: " + browser);
         }
 
+        // 调用 getDriver() 进行通用配置
         getDriver().manage().deleteAllCookies();
         getDriver().manage().window().maximize();
         return getDriver();

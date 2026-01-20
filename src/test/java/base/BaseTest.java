@@ -22,35 +22,40 @@ public class BaseTest {
     public void setup() throws MalformedURLException {
         LogUtils.info("========= 正在初始化测试环境 =========");
         
-        // 1. 初始化配置读取器
         configReader = new ConfigReader();
         prop = configReader.init_prop();
         
-        // 2. 获取配置
         String browserName = prop.getProperty("browser");
-        // 建议在 config.properties 里加一个参数 remote=true/false
+        // 从 config.properties 读取，默认设为 false 方便本地调试
         String remoteMode = prop.getProperty("remote", "false"); 
         
-        // 3. 核心修改：判断是跑本地还是 Docker
         if (remoteMode.equalsIgnoreCase("true")) {
             LogUtils.info("检测到开启远程模式，正在连接 Docker Selenium Grid...");
             
             ChromeOptions options = new ChromeOptions();
+            // 在 Docker 容器中运行必须添加的参数
             options.addArguments("--no-sandbox");
             options.addArguments("--disable-dev-shm-usage");
+            options.addArguments("--headless"); // 建议 Jenkins 跑时开启无头模式，节省资源
             
-            // 这里连接你刚才在浏览器看到的那个地址
-            String hubUrl = "http://localhost:4444/wd/hub";
-            driver = new RemoteWebDriver(new URL(hubUrl), options);
+            // 注意：Selenium 4 的标准连接地址是 http://localhost:4444
+            String hubUrl = "http://localhost:4444"; 
             
-            // 为了保持你的 ThreadLocal 逻辑，把驱动塞回去
-            DriverFactory.tlDriver.set(driver);
+            try {
+                driver = new RemoteWebDriver(new URL(hubUrl), options);
+                // 确保你之前的 DriverFactory 逻辑依然兼容
+                DriverFactory.setDriver(driver); 
+                LogUtils.info("远程 RemoteWebDriver 初始化成功。");
+            } catch (Exception e) {
+                LogUtils.error("无法连接到 Selenium Grid: " + e.getMessage());
+                throw e; 
+            }
+            
         } else {
             LogUtils.info("正在本地启动浏览器: " + browserName);
             driver = DriverFactory.initDriver(browserName);
         }
         
-        // 4. 访问测试 URL
         String url = prop.getProperty("url");
         LogUtils.info("正在打开网址: " + url);
         driver.get(url);
@@ -61,7 +66,10 @@ public class BaseTest {
         if (driver != null) {
             LogUtils.info("正在关闭浏览器并清理会话...");
             driver.quit(); 
-            DriverFactory.tlDriver.remove(); 
+            // 确保 ThreadLocal 资源被正确移除，防止内存泄漏
+            if(DriverFactory.tlDriver != null) {
+                DriverFactory.tlDriver.remove(); 
+            }
         }
         LogUtils.info("========= 测试环境清理完毕 =========");
     }
